@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+
+## Parse a sprite drawing file and render it into PNG image given a sprite
+## sheet and multiple 2D grid layers.
+##
+## Example format:
+##  s <image.png> 512 512
+##  i 5 5 2
+##  r 1024
+##
+##  g . 0 40  (e.g. land tile)
+##  g ^ 0 32  (e.g. hill tile)
+##  g ~ 0 12  (e.g. water tile)
+##
+##  0 0 ~~~~~
+##  0 1 ~..~~
+##  0 2 ~.^.~
+##  0 3 ~~^.~
+##  0 4 ~~.~~
+##
+##  g # 1 134 (e.g. city tile)
+##
+##  1 2 ...#.
+##
+## N.B. Rows can be elided on layers if no art is being added
+
+from PIL import Image
+import random
+import argparse
+
+class SpriteSheet:
+    """
+    Represents a sprite sheet with methods to access individual sprites by
+    grid coordinate or index (top-left row-major).
+    """
+    def __init__(self, filename, sprite_width, sprite_height):
+        self.filename = filename
+        self.sprite_width = sprite_width
+        self.sprite_height = sprite_height
+
+        im = Image.open(filename)
+
+        # Validate on load that image dimensions match sprite dimensions.
+        # TODO: Relax to a warning and just ensure image >= sprite?
+        if im.width % sprite_width != 0:
+            raise ArithmeticError("Image width is not a multiple of sprite_width")
+
+        if im.height % sprite_height != 0:
+            raise ArithmeticError("Image height is not a multiple of sprite_height")
+
+        self.image = im
+        self.grid_cols = im.width // sprite_width
+        self.grid_rows = im.height // sprite_height
+
+        self.print_info()
+
+    def print_info(self):
+        print("Sprite sheet: {0}".format(self.filename))
+        print("Size: {0} x {1}".format(self.image.width, self.image.height))
+        print("Sprite size: {0} x {1}".format(self.sprite_width, self.sprite_height))
+        print("Grid size: {0} x {1}".format(self.grid_cols, self.grid_rows))
+
+    def sprite_at(self, gridx, gridy = -1):
+        """Get a sprite from the sheet as a new Image. If gridy is negative
+        or not given, the sprite position will be computed as though x is a
+        row major index wrapped by the number of columns.
+        """
+        if gridy >= 0:
+            return self.sprite_at_xy(gridx, gridy)
+        else:
+            # Calculate x,y coordinates
+            y = gridx // self.grid_cols
+            x = gridx % self.grid_cols
+
+            return self.sprite_at_xy(x, y)
+
+    def sprite_at_xy(self, gridx, gridy):
+        if not 0 <= gridx < self.grid_cols:
+            raise IndexError(f"X coordinate out of range: {gridx}")
+        if not 0 <= gridy < self.grid_rows:
+            raise IndexError(f"Y coordinate out of range: {gridy}")
+
+        px = gridx * self.sprite_width
+        py = gridy * self.sprite_height
+
+        # N.B: tuple argument.
+        return self.image.crop((px, py, px + self.sprite_width, py + self.sprite_height))
+
+class OutputImage:
+    """
+    Represent an editable multi-layer image that can be drawn onto and finally
+    flattened and saved.
+    """
+    def __init__(self, width, height, layers):
+        self.width = width
+        self.height = height
+        self.layers = [Image.new("RGBA", (width, height))
+                       for x in range(layers)]
+        self.glyphs = [{} for x in range(layers)]
+        self.rotations = [{} for x in range(layers)]
+
+    def add_glyph(self, layer, glyph, rot, alts):
+        if not 0 <= layer < len(self.layers):
+            raise IndexError(f"layer index out of range: {layer}")
+
+        self.glyphs[layer][glyph] = alts
+        self.rotations[layer][glyph] = rot
+
+    def put_sprite(self, sprite, layer, x, y):
+        if not 0 <= layer < len(self.layers):
+            raise IndexError(f"layer index out of range: {layer}")
+
+        self.layers[layer].paste(sprite, (x, y))
+
+    def flatten(self):
+        image = Image.new("RGBA", (self.width, self.height))
+        for layer in self.layers:
+            image.paste(layer, layer)
+
+        return image
+
+def parse_map_file(in_file, out_image_file):
+    """
+    Parse a sprite drawing file and produce the corresponding image in PNG format.
+
+    The sprite drawing file should have directive lines for setting up a sprite sheet
+    and output image and then 1 or more grid style sections representing layers.
+    'glyph' characters can be mapped onto sprite sheet indexes to allow each layer to
+    be drawn in an ASCII art style for visual aid during design.
+    """
+    sprite_sheet = None
+    output_image = None
+
+    random.seed(0)
+    with open(in_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            # skip comments and blanks
+            if len(line) == 0 or line.startswith('#') or line.isspace():
+                continue
+
+            cmd, *args = line.split()
+            if cmd == 'r':
+                seed = int(args)
+                random.seed(seed)
+
+            if cmd == 's':
+                # Open sprite sheet
+                fn, w, h = args
+                print(f"Opening sprite sheet: {fn}")
+                sprite_sheet = SpriteSheet(fn, int(w), int(h))
+
+            if cmd == 'i':
+                # Create output image
+                if sprite_sheet is None:
+                    raise ValueError("No sprite sheet")
+                w, h, layers = args
+
+                w = int(w) * sprite_sheet.sprite_width
+                h = int(h) * sprite_sheet.sprite_height
+
+                print(f"Creating image with dimensions: {w}x{h}, {layers} layers")
+                output_image = OutputImage(w, h, int(layers))
+
+            if cmd == 'g':
+                # Register glyph for layer
+                if output_image is None:
+                    raise ValueError("No output image for glyph")
+                layer, glyph, rot, *alts = args
+                alts = [int(x) for x in alts]
+
+                output_image.add_glyph(int(layer), glyph, int(rot), alts)
+
+            if cmd.isdigit():
+                if sprite_sheet is None:
+                    raise ValueError("No sprite sheet")
+                if output_image is None:
+                    raise ValueError("No output image")
+
+                layer = int(cmd)
+                row, cols = args
+                glyphs = output_image.glyphs[layer]
+                rotations = output_image.rotations[layer]
+
+                for x in range(len(cols)):
+                    glyph = cols[x]
+                    px = int(x) * sprite_sheet.sprite_width
+                    py = int(row) * sprite_sheet.sprite_height
+                    if glyph in glyphs:
+                        sprite = random.choice(glyphs[glyph])
+                        rotation = rotations[glyph]
+                        sprite = sprite_sheet.sprite_at(sprite)
+                        sprite = sprite.rotate(rotation)
+                        output_image.put_sprite(sprite, int(layer), px, py)
+
+    final = output_image.flatten()
+    final.save(out_image_file)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        prog = 'render_map',
+        description = 'Render a layered sprite map',
+        epilog = 'WIP')
+    parser.add_argument('filename')
+    parser.add_argument('-o', '--output')
+
+    args = parser.parse_args()
+
+    output_filename = './output.png'
+    if args.output:
+        output_filename = args.output
+    parse_map_file(args.filename, output_filename)
