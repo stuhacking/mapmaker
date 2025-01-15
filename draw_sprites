@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-## Parse a sprite drawing file and render it into PNG image given a
+## Parse an ASCII drawing file and render it into PNG image given a
 ## sprite sheet and multiple 2D grid layers drawn in an 'ASCII art'
 ## style. (UTF-8 characters are supported.)
 ##
@@ -50,7 +50,7 @@
 ##
 ##  1 2 ...#.
 ##
-## N.B. Rows can be elided on layers if no art is being added
+## N.B. Rows can be elided on layers if no art is being added.
 
 from PIL import Image
 import random
@@ -233,7 +233,7 @@ def parse_map_file(in_file, out_image_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        prog = 'render_map',
+        prog = 'draw_sprites',
         description = 'Render a layered sprite map',
         epilog = 'WIP')
     parser.add_argument('filename')
