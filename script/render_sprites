@@ -1,16 +1,44 @@
 #!/usr/bin/env python3
 
-## Parse a sprite drawing file and render it into PNG image given a sprite
-## sheet and multiple 2D grid layers.
+## Parse a sprite drawing file and render it into PNG image given a
+## sprite sheet and multiple 2D grid layers drawn in an 'ASCII art'
+## style. (UTF-8 characters are supported.)
+##
+## Directives:
+##  s <image path> <sprite width (pixels)> <sprite height (pixels)>
+##    Open a source sprite sheet and declare sprite dimensions
+##
+##  i <width (grid cells)> <height (grid cells)> <layer count>
+##    Create an editable canvas for the resulting image with
+##    dimensions given in cells - resulting size with hence be
+##    num cells wide * sprite width x num cells high * sprite height.
+##
+##  r <number>
+##    Enter a custom seed for the random number generator to
+##    produce deterministic output for any alternatives.
+##
+##  g <layer> <character> <rotation degrees ccw> <sprite index...>
+##    Register a glyph character for a layer which is mapped onto
+##    1 or more sprites in the sprite sheet. Glyphs are unique to
+##    a layer but same character can be re-used on different layers.
+##    Sprite will be rotated by <rotation> degrees when drawn to
+##    the output image.
+##
+##  Any other line starting with a digit will be assumed to be a
+##  map row in the format:
+##    <layer index> <row index> <characters>
+##  Characters must be a contiguous string of glyphs with no
+##  separating whitespace.Characters will be ignored unless previously
+##  registered as a glyph for that layer.
 ##
 ## Example format:
-##  s <image.png> 512 512
+##  s <image.png> 24 24
 ##  i 5 5 2
 ##  r 1024
 ##
-##  g . 0 40  (e.g. land tile)
-##  g ^ 0 32  (e.g. hill tile)
-##  g ~ 0 12  (e.g. water tile)
+##  g 0 . 0  40  (e.g. land tile)
+##  g 0 ^ 0  32  (e.g. hill tile)
+##  g 0 ~ 0  12  (e.g. water tile)
 ##
 ##  0 0 ~~~~~
 ##  0 1 ~..~~
@@ -18,7 +46,7 @@
 ##  0 3 ~~^.~
 ##  0 4 ~~.~~
 ##
-##  g # 1 134 (e.g. city tile)
+##  g 1 # 0  134 (e.g. city tile)
 ##
 ##  1 2 ...#.
 ##
@@ -26,6 +54,7 @@
 
 from PIL import Image
 import random
+import os
 import argparse
 
 class SpriteSheet:
@@ -42,11 +71,11 @@ class SpriteSheet:
 
         # Validate on load that image dimensions match sprite dimensions.
         # TODO: Relax to a warning and just ensure image >= sprite?
-        if im.width % sprite_width != 0:
-            raise ArithmeticError("Image width is not a multiple of sprite_width")
+        if im.width < sprite_width:
+            raise ArithmeticError("Image width is smaller than sprite_width")
 
-        if im.height % sprite_height != 0:
-            raise ArithmeticError("Image height is not a multiple of sprite_height")
+        if im.height < sprite_height:
+            raise ArithmeticError("Image height is smaller than sprite_height")
 
         self.image = im
         self.grid_cols = im.width // sprite_width
@@ -114,10 +143,17 @@ class OutputImage:
 
     def flatten(self):
         image = Image.new("RGBA", (self.width, self.height))
+        # When flattening, use alpha composite for correct blending of
+        # alpha transparency.
         for layer in self.layers:
-            image.paste(layer, layer)
+            image = Image.alpha_composite(image, layer)
 
         return image
+
+    def save(self, path):
+        final = self.flatten()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        final.save(path)
 
 def parse_map_file(in_file, out_image_file):
     """
@@ -141,7 +177,7 @@ def parse_map_file(in_file, out_image_file):
 
             cmd, *args = line.split()
             if cmd == 'r':
-                seed = int(args)
+                seed = int(args[0])
                 random.seed(seed)
 
             if cmd == 's':
@@ -193,8 +229,7 @@ def parse_map_file(in_file, out_image_file):
                         sprite = sprite.rotate(rotation)
                         output_image.put_sprite(sprite, int(layer), px, py)
 
-    final = output_image.flatten()
-    final.save(out_image_file)
+    output_image.save(out_image_file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
