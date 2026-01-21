@@ -166,6 +166,7 @@ def parse_map_file(in_file, out_image_file):
     """
     sprite_sheet = None
     output_image = None
+    active_layer = 0
 
     random.seed(0)
     with open(in_file, 'r') as file:
@@ -198,14 +199,23 @@ def parse_map_file(in_file, out_image_file):
                 print(f"Creating image with dimensions: {w}x{h}, {layers} layers")
                 output_image = OutputImage(w, h, int(layers))
 
+            if cmd == 'layer':
+                # Change active layer if within range
+                layer = int(args[0])
+                if 0 <= layer < len(output_image.layers):
+                    active_layer = layer
+                else:
+                    raise ValueError(f"Layer out of range: {layer}")
+
             if cmd == 'glyph':
                 # Register glyph for layer
                 if output_image is None:
                     raise ValueError("No output image for glyph")
-                layer, glyph, rot, *alts = args
+
+                glyph, rot, *alts = args
                 alts = [int(x) for x in alts]
 
-                output_image.add_glyph(int(layer), glyph, int(rot), alts)
+                output_image.add_glyph(active_layer, glyph, int(rot), alts)
 
             if cmd.isdigit():
                 if sprite_sheet is None:
@@ -213,21 +223,22 @@ def parse_map_file(in_file, out_image_file):
                 if output_image is None:
                     raise ValueError("No output image")
 
-                layer = int(cmd)
-                row, cols = args
-                glyphs = output_image.glyphs[layer]
-                rotations = output_image.rotations[layer]
+                row = int(cmd)
+                cols = args[0]
+
+                glyphs = output_image.glyphs[active_layer]
+                rotations = output_image.rotations[active_layer]
 
                 for x in range(len(cols)):
                     glyph = cols[x]
                     px = int(x) * sprite_sheet.sprite_width
-                    py = int(row) * sprite_sheet.sprite_height
+                    py = row * sprite_sheet.sprite_height
                     if glyph in glyphs:
                         sprite = random.choice(glyphs[glyph])
                         rotation = rotations[glyph]
                         sprite = sprite_sheet.sprite_at(sprite)
                         sprite = sprite.rotate(rotation)
-                        output_image.put_sprite(sprite, int(layer), px, py)
+                        output_image.put_sprite(sprite, active_layer, px, py)
 
     output_image.save(out_image_file)
 
