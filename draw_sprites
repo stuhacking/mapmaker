@@ -152,7 +152,9 @@ class OutputImage:
 
     def save(self, path):
         final = self.flatten()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        new_dir = os.path.dirname(path)
+        if new_dir:
+            os.makedirs(new_dir, exist_ok=True)
         final.save(path)
 
 def parse_map_file(in_file, out_image_file):
@@ -244,9 +246,7 @@ def parse_map_file(in_file, out_image_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        prog = 'draw_sprites',
-        description = 'Render a layered sprite map',
-        epilog = 'WIP')
+        description = 'Render a layered sprite map')
     parser.add_argument('filename')
     parser.add_argument('-o', '--output')
 
