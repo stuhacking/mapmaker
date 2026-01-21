@@ -176,17 +176,17 @@ def parse_map_file(in_file, out_image_file):
                 continue
 
             cmd, *args = line.split()
-            if cmd == 'r':
+            if cmd == 'srand':
                 seed = int(args[0])
                 random.seed(seed)
 
-            if cmd == 's':
+            if cmd == 'sprites':
                 # Open sprite sheet
                 fn, w, h = args
                 print(f"Opening sprite sheet: {fn}")
                 sprite_sheet = SpriteSheet(fn, int(w), int(h))
 
-            if cmd == 'i':
+            if cmd == 'image':
                 # Create output image
                 if sprite_sheet is None:
                     raise ValueError("No sprite sheet")
@@ -198,7 +198,7 @@ def parse_map_file(in_file, out_image_file):
                 print(f"Creating image with dimensions: {w}x{h}, {layers} layers")
                 output_image = OutputImage(w, h, int(layers))
 
-            if cmd == 'g':
+            if cmd == 'glyph':
                 # Register glyph for layer
                 if output_image is None:
                     raise ValueError("No output image for glyph")

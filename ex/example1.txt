@@ -1,26 +1,24 @@
 # A Simple Example
 
-# 's' defines the path to a sprite sheet and the dimensions
+# 'sprites' defines the path to a sprite sheet and the dimensions
 # of an individual sprite.
-s <path/to/sprites.png> 48 48
+sprites <path/to/sprites.png> 48 48
 
-# 'i' defines the output image dimensions (in tiles) and number
+# 'image' defines the output image dimensions (in tiles) and number
 # of layers.
-i 6 6 1
+image 6 6 1
 
-# 'r' defines a custom random seed which only takes effect if
-# a glyph is mapped to multiple variations.
-r 100
-
-# Base Ground and variations
+# 'srand' reseeds the random number generator which only takes
+# effect if a glyph is mapped to multiple variations.
+srand 100
 
 # 'g' defines a glyph for a specific layer. The glyph is
 # an ASCII or UTF-8 character which maps to a rotation of one or more
 # tiles in the sprite sheet zero indexed from the top leftmost tile.
 # If a glyph has multiple tiles, a random one will be selected.
-g 0 . 0  145
-g 0 , 0  146 147 148
-g 0 + 0  21
+glyph 0 . 0  145
+glyph 0 , 0  146 147 148
+glyph 0 + 0  21
 
 # Lines which start with a numeral are then assumed to be rows in the
 # top-down map representation. The first number is the layer, second is the
